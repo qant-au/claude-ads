@@ -113,3 +113,9 @@ assets/diagrams/05-roadmap-B.svg
 
 # Scout posture scans — session artefacts, regenerable
 scout-out/
+
+# Superpowers per-session staging — never committed
+.superpowers/
+
+# graphify local index (rebuilt by post-commit hook)
+graphify-out/
