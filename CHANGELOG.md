@@ -5,6 +5,371 @@ All notable changes to claude-ads are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2] - 2026-09-10
+
+### Added
+
+* **Google Search overlap controls** (public issue 65): `G96` (same-campaign
+  Search plus Dynamic Search Ads overlap) and `G97` (cross-campaign keyword
+  duplication) join the Google catalog as conditional evidence controls. Both
+  are grounded in the current official in-account prioritization and DSA Ad
+  Rank pages, which state that eligible keywords targeting the same domain do
+  not compete with each other in the auction, so the controls describe traffic
+  routing and budget restriction rather than self-bidding or Ad Rank dilution.
+* **Meta cold-start contract in planning and creation** (public issue 53):
+  `/ads plan` and `/ads create` now collect the account, Pixel, and conversion
+  cold-start dimensions defined by `ads-meta` before proposing Meta budgets,
+  learning-phase expectations, forecasts, or creative benchmarks, and the root
+  intake asks for Pixel and conversion-signal history.
+
+### Changed
+
+* **Ecosystem ledger refresh**: reviewed the public tracker as of 2026-09-10,
+  added dispositions for public issues 63 and 65 and pull request 66, and
+  removed public pull request 45, which GitHub no longer serves.
+* **Microsoft Conversions API claim**: re-verified against the current
+  Microsoft Learn page and reworded from "in pilot" to a documented product
+  with a public endpoint, payload schema, partner integrations, and UET
+  deduplication.
+* **Source refresh 2026-09-10**: re-verified 61 platform, API, policy, and
+  regulator sources and 40 dependent claims against their current pages, with
+  no contradictions found; the Microsoft API claim now records the REST-only
+  cutover on 2026-10-01 and the SOAP deprecation scheduled for 2027-01-31, and
+  the TikTok reporting source points at the v1.3 basic-reports reference.
+* **Legacy install preflight** (public issue 57): `install.sh` and
+  `install.ps1` now detect an existing Claude Ads install that has no
+  ownership manifest (any install older than v2.0.0), print one message naming
+  the detected files and every path the installer would own, and exit before
+  any destination write instead of failing once per file. `uninstall.sh`
+  states the same v2.0.0 boundary when the manifest is missing. Managed v2
+  installs still upgrade in place.
+* **Marketplace alias note** (public issue 56): the README explains that
+  marketplaces added before v2.0.0 keep the stale `agricidaniel-claude-ads`
+  alias and shows the remove, add, and install commands.
+* **Live ecosystem gate modes**: `audit_ecosystem_live.py` now runs in
+  default mode on push and pull_request, failing only on an invalid ledger, a
+  mismatched review candidate, ledger items GitHub no longer serves, and
+  unrecorded items created on or before the snapshot date. Post-snapshot
+  items, head drift, metadata drift, and pull requests merged after the
+  snapshot are reported as structured findings and GitHub warning
+  annotations. `--strict` (workflow_dispatch) keeps exact reconciliation, and
+  release verification accepts only a strict workflow_dispatch run. On runs
+  without a pull request event the candidate is derived from the commit under
+  test: the open pull request whose head it is, or the merged pull request
+  whose merge commit it is.
+* **Dependency audit import guard**: `importlib.import_module` and
+  `__import__` are now recognised under from-import, alias, `builtins`,
+  `getattr`, and subscript spellings, and any call whose module name is not a
+  string literal, or any importer referenced outside a direct call, fails the
+  audit as an unresolvable dynamic import. The guard is a syntactic check over
+  first-party source in the guarded scope; it does not see transitive imports
+  inside third-party packages or loaders other than importlib.
+* **Vulnerability exceptions re-verified** on 2026-09-10 against the current
+  import graph and OSV records, with a new `not_affected` record for
+  WeasyPrint PYSEC-2026-3940 (the product never passes `stylesheets` or
+  `xmp_metadata` to `write_pdf` or `render`). Exception records may now carry a
+  machine-checked `forbidden_call_keywords` guard for advisories whose
+  vulnerable channel is a call argument; a guarded keyword passed to any
+  callable, or a forwarded keyword mapping to the guarded function or an
+  unresolvable callee, fails the audit. The CI pip-audit lock now includes
+  `typing_extensions`, which `cyclonedx-python-lib` requires on CPython 3.12.
+
+* **Evidence and ecosystem review**: reconciled the load-bearing claim set
+  against current primary sources, corrected an unreachable repository evidence
+  SHA, qualified Google conversion-goal bidding exceptions, and refreshed the
+  supported Meta architecture claims through August 2026. The Google
+  consent-mode modeling threshold was re-verified against the current official
+  page and now carries a second source noting that no further figure is
+  published. Frozen review ledgers now have a remote gate that reconciles
+  current tracker state and excludes only the exact review candidate.
+* **Control contract migration**: versioned the ecosystem-disposition and
+  release-gate report contracts at 2.0.0, retained the 1.0.0 schemas for stored
+  evidence compatibility, and documented the migration boundary.
+* **CI supply chain**: pinned current major releases of checkout, Python setup,
+  and Dependabot metadata actions by verified commit SHA, and added the
+  aggregate `validate` job required by branch protection. The Dependabot
+  workflow is now read-only, leaving approval and merge to a human.
+* **Test toolchain isolation**: JSON Schema test tooling installs from a
+  dedicated six-package hash lock (`.github/requirements-schema-tests.lock`) in
+  core and full CI jobs and in the documented local setup, so fresh
+  environments no longer fail test collection.
+* **Model evaluation subject binding**: the external model execution packet
+  now binds every task to the exact candidate commit and tree resolved at plan
+  generation time, alongside the pinned retained-v1 subject.
+
+### Fixed
+
+* **Dependency guard aliases**: literal imports of importer modules are followed,
+  and forwarded keyword mappings through simple callable aliases are checked.
+  Simple alias cycles fail closed; computed alias values and interprocedural
+  data flow remain outside this syntactic first-party guard.
+
+* **Microsoft native export conversions**: the AdPerformanceReport profile
+  now maps `ConversionsQualified`; Microsoft documents the legacy
+  `Conversions` column as deprecated since 2022 and always zero, so exports
+  built on it under-reported conversions as zero.
+* **PDF report markup boundary**: the health score caption now escapes the
+  score and grade values with the same helper used for all other report text,
+  closing a ReportLab markup injection route reachable through `build_pdf`
+  callers, and the regression test now exercises every caption route with a
+  markup payload.
+* **Release audit encoding coverage**: the secret and private-path scan now
+  also decodes tracked files as UTF-16 LE and BE, so tokens in UTF-16 files
+  can no longer pass. Live tracker query failures report the HTTP status and
+  endpoint path.
+* **Landing-page audit integrity**: `analyze_landing.py` now exits nonzero and
+  withholds audit grades when browser validation, navigation, or page analysis
+  fails. JSON failures remain machine-readable without presenting missing
+  observations as failed landing-page controls.
+* **Cross-installer safety**: the Bash and PowerShell installers now reject each
+  other's ownership manifests before any mutation. Bash also redirects Windows
+  dependency installs to PowerShell, with focused recovery guidance and
+  regression coverage.
+* **Release verification**: load-bearing source dates now fail closed alongside
+  claim dates, public tracker coverage must exactly match the reviewed snapshot,
+  the remote CI gate reconciles current issue and pull-request metadata and
+  exact heads, and target-lock tests no longer replace unrelated subprocess calls.
+* **Image provider validation**: generated images must be complete, bounded PNG
+  responses with matching output extensions before any provider result can be
+  written or reported as successful.
+* **Platform edge cases**: Meta planning now classifies account, Pixel, and
+  conversion cold starts independently. Google and Microsoft recommendations
+  now require verified operation capability before suggesting a setting change,
+  and the public marketplace command uses the normalized lowercase repository
+  identifier.
+* **Product metadata**: generated PDF reports use the 2.0.2 product version
+  while the Python core correctly retains its independent 2.0.0 version.
+* **Legacy report markup boundary**: user-controlled Markdown, section titles,
+  and brand names are escaped before the constrained ReportLab formatting tags
+  are introduced, preventing raw ReportLab markup from reaching the renderer.
+
+### Security
+
+* **Dependency VEX gate**: added 16 expiring `not_affected` dispositions for
+  current cryptography and Pillow advisories. Each is bound to exact lock
+  versions, upstream advisory IDs, evidence paths, and prohibited imports;
+  any new advisory, execution-path drift, accepted risk, or expiry fails CI.
+  The release retains every referenced evidence path. CI installs the current
+  pinned `pip-audit` 2.10.1 patch release and its full dependency closure from
+  a CPython 3.12 Linux hash lock in an isolated environment.
+* **Code scanning**: added a least-privilege Python CodeQL workflow using the
+  `security-extended` query suite and exact action commit pins.
+* **Sensitive artifact defense**: expanded ignore and release-audit coverage for
+  logs, local databases, credential catch-alls, local configuration, and token
+  patterns embedded in binary files.
+
+## [2.0.1] - 2026-07-13
+
+Documentation and metadata patch on top of v2.0.0 for the public mirror
+release. No code-contract, scoring, catalog, or behavior changes.
+
+### Changed
+
+* **Public release surface**: user-facing repository links in the README
+  install paths, `SUPPORT.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+  `CONTRIBUTING.md`, the issue templates, `CITATION.cff`, and the plugin and
+  marketplace manifests now point to the public `AgriciDaniel/claude-ads`
+  repository, so installation, issues, discussions, and private vulnerability
+  reporting work without AI-Marketing-Hub org access. The community mirror
+  stays documented for AI Marketing Hub Pro members.
+* **Installer default clone source** (`install.sh`, `install.ps1`) retargeted
+  from the private org repository to the public repository so remote-source
+  installs can clone it without org credentials.
+* **Runtime attribution URLs**: the PDF report footer (`generate_report.py`)
+  and the page-fetch User-Agent contact URL (`fetch_page.py`) now reference
+  the public repository. Signed review-evidence provenance
+  (`review_evidence.py`, review templates) intentionally keeps the canonical
+  org subject.
+* **README**: added the dual-distribution note and the native Claude Code
+  plugin install commands.
+
+## [2.0.0] - 2026-07-12
+
+Major architecture release for professional paid-media operations.
+
+### Added
+
+* First-class platform contracts for Reddit, Pinterest, Snapchat, and X, bringing
+  the platform surface to twelve dedicated skills, references, audit workers, and
+  catalog entries.
+* Lifecycle skills for setup, launch, monitor, optimize, research refresh,
+  validation/status, and JSON-first report rendering.
+* Versioned account snapshot, run manifest, control, finding, and report contracts
+  plus a dependency-light CLI.
+* Deterministic category-first scoring with severity-weighted evidence coverage,
+  provisional and insufficient-evidence states, and spend-aware portfolio scoring.
+* Hybrid source, claim, capability, safety, maturity, orchestration, publishing,
+  issue, and pull-request control plane.
+* Capability-led adapter framework, sanitized export fixtures, portable interface
+  metadata, research/source/skill/release verifier agents, and expanded routing
+  evaluations.
+
+### Changed
+
+* Rebuilt the main and platform prompts around progressive disclosure, explicit
+  precedence, untrusted-input boundaries, schema-valid worker results, partial
+  failure semantics, and artifact-backed completion claims.
+* Replaced fixed report filenames and prose-only aggregation with unique run
+  manifests and versioned JSON as the system of record.
+* Reclassified optional, beta, premium, unavailable, and ineligible features as
+  unscored opportunities rather than account-health penalties.
+* Removed universal CPA, budget, learning-phase, attribution, and feature-adoption
+  rules from the runtime prompts.
+* Installation now uses authenticated/local sources, a managed environment,
+  generated counts, and an exact ownership manifest.
+* Installed the intended animated cover banner and the four animated
+  architecture, how-it-works, platform-coverage, and health-score diagrams from
+  the canonical design source. Every SVG is self-contained, with no scripts,
+  event handlers, external requests, or remote assets.
+* Reworked the README around a concise quick start, twelve-platform coverage,
+  canonical commands, safety defaults, and evidence-led scoring, with a
+  no-empty-cell platform table and a user-facing privacy section.
+* Retained `assets/demo.gif` and labeled its original command-discovery
+  interface as historical.
+* Consolidated public-safe research support in the dated source and claim
+  ledgers. Raw research transcripts and private working notes now stay outside
+  the product repository.
+* Replaced dead HTTP JSON Schema identifiers with stable URNs and documented
+  the tracked canonical schema locations.
+* Extended repository auditing to reject personal tilde-home folders used for
+  documents and downloads while retaining portable install examples.
+* Added explicit progressive-disclosure routes for the adjacent-platform
+  reference and the bounded research and fresh-context review workers.
+
+### Removed
+
+* Removed orphaned legacy banners, static placeholder diagrams, and the obsolete
+  reusable branding prompt. Several old diagrams carried stale counts or
+  instructions that conflicted with v2 installation, scoring, privacy, and
+  capability policy.
+* Removed tracked raw research corpora that contained local-machine paths or
+  duplicated material already represented by the public-safe control plane.
+* Removed the orphaned brand DNA prose template, which contradicted the strict
+  v1 brand-profile schema and had no runtime route.
+
+### Security
+
+* Added pre-dispatch SSRF controls for HTTP and Playwright navigation, redirects,
+  frames, and subresources; service workers and downloads are disabled.
+* Added safe output-root and symlink containment, credential redaction, private
+  corpus boundaries, prompt-injection rules, and fail-closed mutation gates.
+* Uninstall refuses namespace globs, tampered manifests, unowned files, and
+  canonical-path escapes.
+
+### Breaking
+
+* v2 JSON contracts and run-directory outputs replace v1 fixed report files.
+* Permanent account-object deletion is unsupported; live writes remain disabled
+  until each exact platform operation passes capability-specific release gates.
+
+## [1.8.1] - 2026-05-27
+
+Documentation and metadata patch on top of v1.8.0. No code, check-catalog, or
+behavior changes; 59/59 pytest still green. (Caught by a post-ship review.)
+
+### Fixed
+
+* **README "What's new" section** updated from v1.7.0 (Wave 2) to v1.8.0 (Wave 3): the +91 checks (catalog 300), the new `audit-regulatory-compliance` agent, and the agentic-era reference docs. It had been left headlining the prior release.
+* **Stale test count corrected: 41 to 59** (actual pytest collected and passing) in README, `CITATION.cff`, `plugin.json`, and `marketplace.json`. The v1.7.0 CHANGELOG entry retains 41 (accurate for that release).
+* **Roadmap framing** refreshed: v1.8.0 is shipped / current, not "in active development"; removed the inaccurate "v1.8.0 visual system" diagram alt-text.
+
+### Added
+
+* **Limitations section** in the README (manual data input, catalog scope, point-in-time 2026 benchmarks, experimental non-Claude hosts) with a table-of-contents entry.
+
+## [1.8.0] - 2026-05-26
+
+Substantive Wave 3 release. Adds 91 net-new catalog-tracked platform checks across the five
+catalog platforms (Google, Meta, TikTok, LinkedIn, Microsoft), a new regulatory-compliance
+audit agent (C01-C29 + C-MCP-1..6 + C-iOS-1), three new reference docs rewritten for the
+agentic / MCP / regulatory era, seven per-platform research notes, and a regulatory-exposure
+scoring band. Sourced from `research/RESEARCH-NOTES-MAY-2026.md` (primary-source cited).
+
+### Added
+
+#### `/ads google` — Google Marketing Live 2026 (May 20, 2026) addendum (G81-G95, +15 checks)
+
+* Ask Advisor governance, Business Agent for Leads, Direct Offers, AI Mode ad formats (G81-G84)
+* Journey-aware bidding, Smart Bidding Exploration on PMax + Shopping, total budgets, demand-led pacing (G85-G88)
+* Meridian in GA360, Qualified Future Conversions, Attributed Branded Searches, Asset Studio Gemini Omni, Demand Gen stack, Ads Advisor 3 (G89-G94)
+* **G95: DSA → AI Max forced migration P0 gate (September 2026)** — no opt-out; pre-migration AI Brief / FUE / brand-exclusion readiness check
+
+#### `/ads meta` — MCP + March 3 attribution rebuild + Q1 2026 AI-stack refresh (M51-M72, +22 checks)
+
+* Meta Ads MCP (`mcp.facebook.com/ads`, 29 tools), paused-by-default, **MCP write-action governance** with the SurfaceLabs cautionary tale (M51-M53)
+* March 3, 2026 attribution rebuild: link-clicks-only click-through, engage-through column, 10s→5s engaged-view, new default windows, YoY-not-comparable warning (M54-M59)
+* Q1 2026 AI-stack metrics + **ARM (Adaptive Ranking Model)** + Incremental Attribution Q4 2025 model (M60-M64)
+* Ad-level placement control, AI Instant Forms, **730-day audience + Pixel auto-include governance flags**, Advantage+ Creative Categories (M65-M69)
+* **M70: Comscore Markets P0 gate — June 22, 2026 automotive cutoff** (`dma_code` → `comscore_market_codes`); DST fees; CAPI one-click + EMQ ≥ 7 (M70-M72)
+
+#### `/ads tiktok` — TikTok World 2026 (May 13-15, 2026) (T29-T46, +18 checks)
+
+* TikTok Ads MCP + Ads Skills; **Smart+ One Buying Experience module-level automation classifier** (T29-T31)
+* Music Autofix, creative reporting, TopReach + Creative Sequencing, Branded Buzz, Search Hubs, Symphony / Dreamina, TikTok GO, Mini Series, Collage Carousel, One Asset Manager, View+, Market Scope, TikTok Real, GMV Max (T32-T46)
+
+#### `/ads linkedin` — Off-Platform Event Ads + Campaign Manager rename (L28-L46, +19 checks)
+
+* **L28: Off-Platform Event Ads** (no LinkedIn Event Page; Cvent / ON24 / Integrate)
+* **L29: Campaign Manager terminology rename trap** (UI "Campaign Group"→"Campaign" vs unchanged API; UTM mismatch warning)
+* Career Journey, Reserved / First Impression Ads, BrandLink, Wire, Thought Leader, CTV, Company Attribution, Company Intelligence API, Agency Certification, Depth Score organic algorithm (L30-L46)
+
+#### `/ads microsoft` — AI Max for Search + Activate 2026 (MS25-MS41, +17 checks)
+
+* **MS25: Microsoft AI Max for Search** (Copilot Search / Answers / Bing; distinct from Google)
+* Offer Highlights, Audience Generation, PMax transparency, Clarity AI Visibility, Brand Agents, UCP in Merchant Center, Copilot Checkout, Rewarded Portals, Import Center, diagnostics, DDA, CAPI, Brand Kit, **SOAP API deprecation** (MS26-MS41)
+
+#### `/ads compliance` — NEW `audit-regulatory-compliance` agent (C01-C29 + C-MCP-1..6 + C-iOS-1, +36 checks)
+
+A new parallel audit agent dedicated to the regulatory surface, dispatched by `/ads audit`
+alongside the existing agents.
+
+* **C01-C05**: EU AI Act Article 50 — Aug 2, 2026 baseline; Dec 2, 2026 watermarking grandfathered; €15M / 3% penalties; multi-layered watermarking; provider vs deployer obligations
+* **C06-C17**: US state privacy — 22 states; 12-state GPC list; CCPA §7025(c)(6) visible confirmation; Connecticut neural data (July 1, 2026); Maryland MODPA; CA Delete Act DROP
+* **C18-C21**: Privacy Sandbox October 17, 2025 retirement; remaining CHIPS / FedCM / Private State Tokens; UK CMA 85% inaccuracy / 30% revenue-decline citation
+* **C-iOS-1**: iOS 26 ATFP / Link Tracking Protection — server-side tracking mandatory for >5% iOS Safari traffic
+* **C22-C29**: DSA enforcement / HIPAA / LegitScript / Special Ad Categories / PIPL / LGPD / DPDPA / TCF v2.3 + GPP
+* **C-MCP-1..6**: MCP write-action governance — read-only-first, human approval gate, paused-by-default, rate-limit, no autonomous budget loops, ≥90-day audit-log retention
+
+#### Cross-platform 2026 landscape (X01-X25, research notes)
+
+* Reddit Max / Dual Attribution / App Event Optimization; Pinterest tvScientific + CTV Audiences; Snap Smart Solutions / AI Sponsored Snaps; CTV/OTT shifts; Universal Commerce Protocol (NRF + AP2 → FIDO); IAB Tech Lab AAMP + Agent Registry. Documented in `research/RESEARCH-NOTES-MAY-2026.md`; surfaced via `/ads attribution`, `/ads server-side-tracking`, and the orchestrator (narrative/awareness, not yet catalog-tracked).
+
+#### `/ads amazon` + `/ads apple` deltas (inline)
+
+* Amazon: Unified Campaign Manager, Ads/Creative Agents, Full-Funnel Campaigns, MTA, Sponsored Brands Collections (Jan 28, 2026), SP/SB Prompts GA (March 25, 2026), Brand+ / Performance+, Prime Video expansion, Complete TV (AMZ-new-1..17, inline in `skills/ads-amazon/SKILL.md`)
+* Apple: Multiple Search Ad Placements (no position-level reporting), AdAttributionKit refresh, Custom Product Pages, iOS 26 ATFP/LTP, WWDC 2026 watch list (A36-A42, inline in `skills/ads-apple/SKILL.md`)
+
+#### New reference + research docs
+
+* `references/mcp-integration.md` — full rewrite for the agentic era (Google / Amazon / Meta / Microsoft / TikTok MCPs, IAB AAMP + Agent Registry, write-action governance policy + SurfaceLabs precedent)
+* `references/compliance-requirements.md` — EU AI Act + 22-state US privacy + Privacy Sandbox + iOS 26 + DSA + HIPAA / LegitScript + global frameworks
+* `references/meta-ai-stack.md` — consolidated Andromeda + GEM + Lattice + ARM with Q1 2026 metrics + the four operational principles
+* `research/RESEARCH-NOTES-MAY-2026.md` + `research/notes-{google,meta,tiktok,linkedin,microsoft,apple,amazon}.md` — per-platform research notes with primary-source citations
+* `references/automation-tier-classifier.md` — module-level automation classification (Smart+ One Buying Experience, Advantage+, AI Max, Accelerate, Microsoft AI Max)
+
+### Changed
+
+* **Compliance agent split** — `audit-compliance` renamed to `audit-policy-compliance` (platform ad policy, Special Ad Categories, deprecated features, performance benchmarks); new `audit-regulatory-compliance` added for the regulatory surface. Agents 10 → **11** (7 audit + 4 creative). Sub-skill count is **unchanged at 22** (the new compliance unit is an audit agent, not a sub-skill).
+* **`tests/fixtures/check-catalog.yaml`** — 5-platform catalog extended from 209 to **300** verified checks (Google 95, Meta 72, LinkedIn 46, TikTok 46, Microsoft 41), bidirectionally enforced by the eval harness. Apple, Amazon, the X01-X25 landscape, and attribution + server-side remain inline pending Wave 3.x catalog extraction.
+* **`scoring-system.md`** — adds the **regulatory-exposure band** (P0/P1/P2 → severity multipliers, scored at 100% aggregate weight) and the five hard regulatory clocks; refreshed Total Check Counts table to v1.8.0.
+* **README.md** — "250+ checks" → "300+ checks"; "10 agents" → "11 agents (7 audit + 4 creative)"; `/ads audit` now spawns 7 parallel subagents incl. `audit-regulatory-compliance`.
+* **Version metadata** — `plugin.json`, `marketplace.json`, `CITATION.cff`, and `scripts/generate_report.py` bumped to 1.8.0.
+
+### Deprecated
+
+* References to Privacy Sandbox APIs as a future tracking direction (October 17, 2025 retirement)
+* Pre-March-3-2026 Meta YoY comparison framing in `audit-meta` reporting
+
+### Fixed
+
+* Citation accuracy captured in `research/notes-amazon.md`: the "+143% click-attributed sales" figure is re-attributed from Sponsored Brands Collections to Sponsored Brands Reserve Share of Voice (per Amazon's official Reserve Share of Voice page); Google AI Max case studies flagged as vendor-supplied (JumpFly April 2026 independent analysis shows neutral-to-negative)
+
+### Security
+
+* MCP write-action governance defaults documented in `references/mcp-integration.md` and enforced by `audit-regulatory-compliance` (C-MCP-1..6): paused-by-default, ≤200 calls/hour, ≥90-day audit-log retention, human approval gate for budget changes above a configurable threshold. Encodes the SurfaceLabs April 2026 permanent-account-ban precedent.
+
+---
+
 ## [1.7.1] - 2026-05-18
 
 Patch release covering the post-v1.7.0 polish wave: a comprehensive README

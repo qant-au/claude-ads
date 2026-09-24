@@ -6,15 +6,22 @@ Checks Core Web Vitals, mobile responsiveness, message match elements,
 and conversion-readiness signals aligned with ad audit checks G59-G61.
 
 Usage:
-    python analyze_landing.py https://example.com/landing
-    python analyze_landing.py https://example.com/landing --json
+    python analyze_landing.py https://example.com/landing --egress-attestation attestation.json
+    python analyze_landing.py https://example.com/landing --json --egress-attestation attestation.json
 """
 
 import argparse
 import json
 import sys
 
-from url_utils import sanitize_error, validate_url
+from url_utils import (
+    EgressSandboxAttestation,
+    create_guarded_browser_context,
+    load_egress_sandbox_attestation,
+    sanitize_error,
+    sanitize_url,
+    validate_browser_url,
+)
 
 try:
     from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
@@ -23,7 +30,12 @@ except ImportError:
     sys.exit(1)
 
 
-def analyze_landing(url: str, timeout: int = 30000) -> dict:
+def analyze_landing(
+    url: str,
+    timeout: int = 30000,
+    *,
+    egress_attestation: EgressSandboxAttestation | None = None,
+) -> dict:
     """
     Analyze landing page quality for ad campaign relevance.
 
@@ -37,7 +49,7 @@ def analyze_landing(url: str, timeout: int = 30000) -> dict:
         - Trust signals (testimonials, badges, reviews)
     """
     result = {
-        "url": url,
+        "url": sanitize_url(url),
         "performance": {
             "lcp_ms": None,
             "cls": None,
@@ -74,10 +86,18 @@ def analyze_landing(url: str, timeout: int = 30000) -> dict:
             "service_schema": False,
         },
         "error": None,
+        "egress_attestation": None,
     }
 
     try:
-        url = validate_url(url)
+        # Playwright cannot bind its eventual socket to a Python-validated DNS
+        # answer. Default browser analysis is denied unless the caller attests
+        # an independent OS/container egress enforcement boundary.
+        url = validate_browser_url(
+            url,
+            egress_attestation=egress_attestation,
+        )
+        result["egress_attestation"] = egress_attestation.audit_reference()
     except ValueError as e:
         result["error"] = sanitize_error(e)
         return result
@@ -87,13 +107,23 @@ def analyze_landing(url: str, timeout: int = 30000) -> dict:
             browser = p.chromium.launch(headless=True)
 
             # Desktop analysis
-            desktop = browser.new_context(viewport={"width": 1920, "height": 1080})
+            desktop, desktop_blocks = create_guarded_browser_context(
+                browser,
+                viewport={"width": 1920, "height": 1080},
+                egress_attestation=egress_attestation,
+            )
             page = desktop.new_page()
 
             page.goto(url, wait_until="networkidle", timeout=timeout)
             # Playwright follows redirects silently. Re-validate the final URL
             # against the SSRF blocklist (initial URL was already checked).
-            validate_url(page.url)
+            validate_browser_url(
+                page.url,
+                egress_attestation=egress_attestation,
+            )
+            if desktop_blocks:
+                blocked = desktop_blocks[0]
+                raise ValueError(f"Blocked browser request to {blocked['url']}: {blocked['error']}")
 
             # Performance metrics
             perf = page.evaluate("""
@@ -214,10 +244,20 @@ def analyze_landing(url: str, timeout: int = 30000) -> dict:
             desktop.close()
 
             # Mobile analysis
-            mobile = browser.new_context(viewport={"width": 375, "height": 812})
+            mobile, mobile_blocks = create_guarded_browser_context(
+                browser,
+                viewport={"width": 375, "height": 812},
+                egress_attestation=egress_attestation,
+            )
             page = mobile.new_page()
             page.goto(url, wait_until="networkidle", timeout=timeout)
-            validate_url(page.url)
+            validate_browser_url(
+                page.url,
+                egress_attestation=egress_attestation,
+            )
+            if mobile_blocks:
+                blocked = mobile_blocks[0]
+                raise ValueError(f"Blocked browser request to {blocked['url']}: {blocked['error']}")
 
             # LCP on mobile viewport (G59 = mobile speed)
             lcp = page.evaluate("""
@@ -256,6 +296,9 @@ def analyze_landing(url: str, timeout: int = 30000) -> dict:
 
 def grade_landing(result: dict) -> dict:
     """Grade landing page quality based on ad audit criteria."""
+    if result.get("error"):
+        raise ValueError("cannot grade a failed landing-page analysis")
+
     grades = {}
 
     # G59: Mobile speed (LCP)
@@ -300,14 +343,41 @@ def grade_landing(result: dict) -> dict:
     return grades
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Analyze landing page quality for ad campaigns")
     parser.add_argument("url", help="URL to analyze")
     parser.add_argument("--timeout", "-t", type=int, default=30000, help="Timeout in ms")
     parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+    parser.add_argument(
+        "--egress-attestation",
+        help=(
+            "Path to a signed, short-lived egress-sandbox attestation. Trust key, "
+            "key ID, and environment ID must be provisioned through environment variables."
+        ),
+    )
 
-    args = parser.parse_args()
-    result = analyze_landing(args.url, timeout=args.timeout)
+    args = parser.parse_args(argv)
+    try:
+        egress_attestation = (
+            load_egress_sandbox_attestation(args.egress_attestation)
+            if args.egress_attestation
+            else None
+        )
+    except ValueError as exc:
+        print(f"Error: {sanitize_error(exc)}", file=sys.stderr)
+        return 1
+    result = analyze_landing(
+        args.url,
+        timeout=args.timeout,
+        egress_attestation=egress_attestation,
+    )
+    if result.get("error"):
+        error = sanitize_error(result["error"])
+        if args.json:
+            print(json.dumps({**result, "error": error}, indent=2))
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
     grades = grade_landing(result)
 
     if args.json:
@@ -327,12 +397,12 @@ def main():
         print(f"  CLS: {cls} ({cls_status})")
         print(f"  TTFB: {result['performance']['ttfb_ms']}ms")
 
-        print(f"\nContent:")
+        print("\nContent:")
         print(f"  Title: {result['content']['title']}")
         print(f"  H1: {result['content']['h1'] or 'MISSING'}")
         print(f"  Words: {result['content']['word_count']}")
 
-        print(f"\nConversion Elements:")
+        print("\nConversion Elements:")
         print(f"  CTA Above Fold: {'Y' if result['conversion']['cta_above_fold'] else 'N'}")
         print(f"  Form: {'Y (' + str(result['conversion']['form_fields']) + ' fields)' if result['conversion']['form_present'] else 'N'}")
         print(f"  Phone: {'Y' if result['conversion']['phone_number'] else 'N'}")
@@ -340,13 +410,12 @@ def main():
 
         print(f"\nSchema: {', '.join(result['schema']['types_found']) or 'None'}")
 
-        print(f"\nAudit Grades:")
+        print("\nAudit Grades:")
         for check, grade in grades.items():
             print(f"  [{grade}] {check}")
 
-        if result["error"]:
-            print(f"\nError: {result['error']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -68,10 +68,9 @@ def test_every_reference_row_appears_in_catalog(check_catalog, repo_root):
     assert not failures, "Untracked reference rows:\n  " + "\n  ".join(failures)
 
 
-def test_total_check_count_is_at_least_209(check_catalog):
-    """Sanity: claude-ads's README headline is '250+ checks'. The 5 platform
-    catalogs alone account for 209; cross-platform (creative, landing, budget,
-    compliance) make up the rest. This test pins the baseline so a future
-    regression that drops checks fires immediately."""
+def test_total_check_count_is_at_least_v2_twelve_platform_baseline(check_catalog):
+    """The v2 registry includes the five legacy catalogs plus seven first-class
+    platform contracts. Keep a coarse floor without turning check count into a
+    maturity score."""
     total = sum(len(p["check_ids"]) for p in check_catalog["platforms"].values())
-    assert total >= 209, f"Platform catalogs total {total}; baseline is 209"
+    assert total >= 400, f"Platform catalogs total {total}; v2 baseline is at least 400"
